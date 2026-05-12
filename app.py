@@ -64,10 +64,7 @@ def fix_arabic(text):
         return text
 
 def clean_text(text):
-    # استبدال \\n بسطر جديد فعلي
-    text = text.replace('\\n', '\n')
-    # تنظيف المسافات
-    text = text.strip()
+    text = text.replace('\\n', '\n').strip()
     return text
 
 def parse_sse(resp):
@@ -97,10 +94,25 @@ def call_deni(msgs):
         return parse_sse(resp)
     return None
 
-def json_response(data, status=200):
+# ========== التنسيق الجديد ==========
+def ok(reply):
     return Response(
-        json.dumps(data, ensure_ascii=False, indent=2),
-        status=status,
+        json.dumps({
+            "model_used": "GPT-5.5",
+            "reply": reply,
+            "status": "success"
+        }, ensure_ascii=False),
+        mimetype='application/json; charset=utf-8'
+    )
+
+def err(msg, code=400):
+    return Response(
+        json.dumps({
+            "model_used": "GPT-5.5",
+            "reply": msg,
+            "status": "error"
+        }, ensure_ascii=False),
+        status=code,
         mimetype='application/json; charset=utf-8'
     )
 
@@ -108,10 +120,7 @@ def json_response(data, status=200):
 def chat():
     data = request.json
     if not data or 'message' not in data:
-        return json_response({
-            "reply": "أرسل {'message': 'نص'}",
-            "model": "gpt-5.5"
-        }, 400)
+        return err("أرسل {'message': 'نص'}")
     
     user_text = data['message']
     msgs = session()
@@ -120,26 +129,17 @@ def chat():
     
     if reply:
         add_msg("assistant", reply)
-        return json_response({
-            "reply": reply,
-            "model": "gpt-5.5"
-        })
+        return ok(reply)
     else:
         if msgs and msgs[-1]["role"] == "user":
             msgs.pop()
-        return json_response({
-            "reply": "عذراً، حدث خطأ.",
-            "model": "gpt-5.5"
-        }, 502)
+        return err("عذراً، حدث خطأ.", 502)
 
 @app.route('/ask')
 def ask():
     msg = request.args.get('q', '')
     if not msg:
-        return json_response({
-            "reply": "استخدم ?q=سؤالك",
-            "model": "gpt-5.5"
-        })
+        return err("استخدم ?q=سؤالك")
     
     msgs = session()
     add_msg("user", msg)
@@ -147,37 +147,34 @@ def ask():
     
     if reply:
         add_msg("assistant", reply)
-        return json_response({
-            "reply": reply,
-            "model": "gpt-5.5"
-        })
+        return ok(reply)
     else:
-        return json_response({
-            "reply": "عذراً، حدث خطأ",
-            "model": "gpt-5.5"
-        }, 502)
+        return err("عذراً، حدث خطأ", 502)
 
 @app.route('/reset', methods=['POST'])
 def reset():
     uid = get_uid()
     if uid in user_memory:
         del user_memory[uid]
-    return json_response({
-        "reply": "تم مسح الذاكرة",
-        "model": "gpt-5.5"
-    })
+    return Response(
+        json.dumps({
+            "model_used": "GPT-5.5",
+            "reply": "تم مسح الذاكرة",
+            "status": "success"
+        }, ensure_ascii=False),
+        mimetype='application/json; charset=utf-8'
+    )
 
 @app.route('/')
 def home():
-    return json_response({
-        "reply": "Deni AI API",
-        "model": "gpt-5.5",
-        "endpoints": {
-            "chat": "/chat (POST)",
-            "ask": "/ask?q=سؤالك",
-            "reset": "/reset (POST)"
-        }
-    })
+    return Response(
+        json.dumps({
+            "model_used": "GPT-5.5",
+            "reply": "API GPT-5.5",
+            "status": "success"
+        }, ensure_ascii=False),
+        mimetype='application/json; charset=utf-8'
+    )
 
 if __name__ == "__main__":
     app.run(debug=True)
