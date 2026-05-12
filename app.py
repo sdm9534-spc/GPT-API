@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, Response
 import requests
 import uuid
 import json
@@ -12,6 +12,9 @@ API_URL = f"{BASE_URL}/api/chat"
 
 COOKIES = {
     "__Secure-better-auth.session_token": "rr35rsYZuZ2mSEAZscQjEl10qQkxhjez.LqPP%2Bg02TrGOi0snadyIi34qNtI3J8lkXuruq80tPf0%3D",
+    "better-auth.last_used_login_method": "google",
+    "_ga": "GA1.1.1232790527.1778523320",
+    "_ga_B5H8G73JTN": "GS2.1.s1778523319$o1$g1$t1778523410$j52$l0$h0"
 }
 
 HEADERS = {
@@ -45,7 +48,11 @@ def session():
 
 def add_msg(role, text):
     msgs = session()
-    msgs.append({"parts": [{"type": "text", "text": text}], "id": str(uuid.uuid4())[:16], "role": role})
+    msgs.append({
+        "parts": [{"type": "text", "text": text}],
+        "id": str(uuid.uuid4())[:16],
+        "role": role
+    })
     if len(msgs) > MAX_MSG:
         msgs.pop(0)
         msgs.pop(0)
@@ -80,15 +87,18 @@ def call_deni(msgs):
         return parse_sse(resp)
     return None
 
+def json_response(data, status=200):
+    return Response(
+        json.dumps(data, ensure_ascii=False),
+        status=status,
+        mimetype='application/json; charset=utf-8'
+    )
+
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.json
     if not data or 'message' not in data:
-        return Response(
-            json.dumps({"reply": "أرسل {'message': 'نص'}", "model": "gpt-5.5"}, ensure_ascii=False),
-            status=400,
-            mimetype='application/json; charset=utf-8'
-        )
+        return json_response({"reply": "أرسل {'message': 'نص'}", "model": "gpt-5.5"}, 400)
     
     user_text = data['message']
     msgs = session()
@@ -97,35 +107,38 @@ def chat():
     
     if reply:
         add_msg("assistant", reply)
-        return Response(
-            json.dumps({"reply": reply, "model": "gpt-5.5"}, ensure_ascii=False),
-            mimetype='application/json; charset=utf-8'
-        )
+        return json_response({"reply": reply, "model": "gpt-5.5"})
     else:
         if msgs and msgs[-1]["role"] == "user":
             msgs.pop()
-        return Response(
-            json.dumps({"reply": "عذراً، حدث خطأ.", "model": "gpt-5.5"}, ensure_ascii=False),
-            status=502,
-            mimetype='application/json; charset=utf-8'
-        )
+        return json_response({"reply": "عذراً، حدث خطأ.", "model": "gpt-5.5"}, 502)
+
+@app.route('/ask')
+def ask():
+    msg = request.args.get('q', '')
+    if not msg:
+        return json_response({"reply": "استخدم ?q=سؤالك", "model": "system"})
+    
+    msgs = session()
+    add_msg("user", msg)
+    reply = call_deni(msgs)
+    
+    if reply:
+        add_msg("assistant", reply)
+        return json_response({"reply": reply, "model": "gpt-5.5"})
+    else:
+        return json_response({"reply": "عذراً، حدث خطأ", "model": "gpt-5.5"}, 502)
 
 @app.route('/reset', methods=['POST'])
 def reset():
     uid = get_uid()
     if uid in user_memory:
         del user_memory[uid]
-    return Response(
-        json.dumps({"reply": "تم مسح الذاكرة", "model": "system"}, ensure_ascii=False),
-        mimetype='application/json; charset=utf-8'
-    )
+    return json_response({"reply": "تم مسح الذاكرة", "model": "system"})
 
 @app.route('/')
 def home():
-    return Response(
-        json.dumps({"reply": "Deni AI API شغال! استخدم /chat", "model": "system"}, ensure_ascii=False),
-        mimetype='application/json; charset=utf-8'
-    )
+    return json_response({"reply": "Deni AI API شغال! استخدم /chat أو /ask?q=سؤالك", "model": "system"})
 
 if __name__ == "__main__":
     app.run(debug=True)
