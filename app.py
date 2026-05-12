@@ -31,14 +31,14 @@ MAX_AGE = timedelta(hours=24)
 def get_uid():
     return f"user_{request.remote_addr or 'unknown'}"
 
-def clean():
+def clean_old():
     now = datetime.now()
     for uid in list(user_memory.keys()):
         if now - user_memory[uid].get("last", now) > MAX_AGE:
             del user_memory[uid]
 
 def session():
-    clean()
+    clean_old()
     uid = get_uid()
     if uid not in user_memory:
         user_memory[uid] = {"msg": [], "last": datetime.now()}
@@ -58,28 +58,27 @@ def add_msg(role, text):
         msgs.pop(0)
 
 def fix_arabic(text):
-    """إصلاح الترميز العربي"""
     try:
         return text.encode('latin1').decode('utf-8')
     except:
         return text
 
 def clean_text(text):
-    """تنظيف النص من الرموز الزائدة"""
-    # استبدال \\n بسطر جديد حقيقي
+    # استبدال \\n بسطر جديد فعلي
     text = text.replace('\\n', '\n')
-    # إزالة المسافات الزائدة
+    # تنظيف المسافات
     text = text.strip()
     return text
 
 def parse_sse(resp):
-    """قراءة تيار SSE وتجميع النص"""
     t = ""
     for c in resp.iter_content(chunk_size=1, decode_unicode=True):
-        if c: t += c
+        if c:
+            t += c
     deltas = re.findall(r'"text-delta"[^}]*"delta":"([^"]*)"', t)
     result = fix_arabic(''.join(deltas))
-    return clean_text(result)
+    result = clean_text(result)
+    return result
 
 def call_deni(msgs):
     payload = {
@@ -99,7 +98,6 @@ def call_deni(msgs):
     return None
 
 def json_response(data, status=200):
-    """يرجع JSON منسق"""
     return Response(
         json.dumps(data, ensure_ascii=False, indent=2),
         status=status,
@@ -111,8 +109,8 @@ def chat():
     data = request.json
     if not data or 'message' not in data:
         return json_response({
-            "error": "أرسل {'message': 'نص'}",
-            "model": "system"
+            "reply": "أرسل {'message': 'نص'}",
+            "model": "gpt-5.5"
         }, 400)
     
     user_text = data['message']
@@ -140,7 +138,7 @@ def ask():
     if not msg:
         return json_response({
             "reply": "استخدم ?q=سؤالك",
-            "model": "system"
+            "model": "gpt-5.5"
         })
     
     msgs = session()
