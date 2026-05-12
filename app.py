@@ -64,6 +64,7 @@ def fix_arabic(text):
         return text
 
 def clean_text(text):
+    # إزالة \\n واستبدالها بسطر جديد فعلي
     text = text.replace('\\n', '\n').strip()
     return text
 
@@ -94,24 +95,26 @@ def call_deni(msgs):
         return parse_sse(resp)
     return None
 
-# ========== التنسيق الجديد ==========
+# ========== تنسيق JSON منفصل ==========
 def ok(reply):
+    data = {
+        "model_used": "GPT-5.5",
+        "reply": reply,
+        "status": "success"
+    }
     return Response(
-        json.dumps({
-            "model_used": "GPT-5.5",
-            "reply": reply,
-            "status": "success"
-        }, ensure_ascii=False),
+        json.dumps(data, ensure_ascii=False, indent=2),
         mimetype='application/json; charset=utf-8'
     )
 
 def err(msg, code=400):
+    data = {
+        "model_used": "GPT-5.5",
+        "reply": msg,
+        "status": "error"
+    }
     return Response(
-        json.dumps({
-            "model_used": "GPT-5.5",
-            "reply": msg,
-            "status": "error"
-        }, ensure_ascii=False),
+        json.dumps(data, ensure_ascii=False, indent=2),
         status=code,
         mimetype='application/json; charset=utf-8'
     )
@@ -156,23 +159,25 @@ def reset():
     uid = get_uid()
     if uid in user_memory:
         del user_memory[uid]
+    data = {
+        "model_used": "GPT-5.5",
+        "reply": "تم مسح الذاكرة",
+        "status": "success"
+    }
     return Response(
-        json.dumps({
-            "model_used": "GPT-5.5",
-            "reply": "تم مسح الذاكرة",
-            "status": "success"
-        }, ensure_ascii=False),
+        json.dumps(data, ensure_ascii=False, indent=2),
         mimetype='application/json; charset=utf-8'
     )
 
 @app.route('/')
 def home():
+    data = {
+        "model_used": "GPT-5.5",
+        "reply": "API GPT-5.5",
+        "status": "success"
+    }
     return Response(
-        json.dumps({
-            "model_used": "GPT-5.5",
-            "reply": "API GPT-5.5",
-            "status": "success"
-        }, ensure_ascii=False),
+        json.dumps(data, ensure_ascii=False, indent=2),
         mimetype='application/json; charset=utf-8'
     )
 
