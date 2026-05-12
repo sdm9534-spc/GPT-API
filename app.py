@@ -64,8 +64,9 @@ def fix_arabic(text):
         return text
 
 def clean_text(text):
-    # إزالة \\n واستبدالها بسطر جديد فعلي
-    text = text.replace('\\n', '\n').strip()
+    text = text.replace('\\n', '\n')
+    text = text.replace('\\', '')
+    text = text.strip()
     return text
 
 def parse_sse(resp):
@@ -95,41 +96,23 @@ def call_deni(msgs):
         return parse_sse(resp)
     return None
 
-# ========== تنسيق JSON منفصل ==========
 def ok(reply):
-    data = {
-        "model_used": "GPT-5.5",
-        "reply": reply,
-        "status": "success"
-    }
-    return Response(
-        json.dumps(data, ensure_ascii=False, indent=2),
-        mimetype='application/json; charset=utf-8'
-    )
+    data = {"model_used": "GPT-5.5", "reply": reply, "status": "success"}
+    return Response(json.dumps(data, ensure_ascii=False, indent=2), mimetype='application/json; charset=utf-8')
 
 def err(msg, code=400):
-    data = {
-        "model_used": "GPT-5.5",
-        "reply": msg,
-        "status": "error"
-    }
-    return Response(
-        json.dumps(data, ensure_ascii=False, indent=2),
-        status=code,
-        mimetype='application/json; charset=utf-8'
-    )
+    data = {"model_used": "GPT-5.5", "reply": msg, "status": "error"}
+    return Response(json.dumps(data, ensure_ascii=False, indent=2), status=code, mimetype='application/json; charset=utf-8')
 
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.json
     if not data or 'message' not in data:
         return err("أرسل {'message': 'نص'}")
-    
     user_text = data['message']
     msgs = session()
     add_msg("user", user_text)
     reply = call_deni(msgs)
-    
     if reply:
         add_msg("assistant", reply)
         return ok(reply)
@@ -143,11 +126,9 @@ def ask():
     msg = request.args.get('q', '')
     if not msg:
         return err("استخدم ?q=سؤالك")
-    
     msgs = session()
     add_msg("user", msg)
     reply = call_deni(msgs)
-    
     if reply:
         add_msg("assistant", reply)
         return ok(reply)
@@ -159,27 +140,13 @@ def reset():
     uid = get_uid()
     if uid in user_memory:
         del user_memory[uid]
-    data = {
-        "model_used": "GPT-5.5",
-        "reply": "تم مسح الذاكرة",
-        "status": "success"
-    }
-    return Response(
-        json.dumps(data, ensure_ascii=False, indent=2),
-        mimetype='application/json; charset=utf-8'
-    )
+    data = {"model_used": "GPT-5.5", "reply": "تم مسح الذاكرة", "status": "success"}
+    return Response(json.dumps(data, ensure_ascii=False, indent=2), mimetype='application/json; charset=utf-8')
 
 @app.route('/')
 def home():
-    data = {
-        "model_used": "GPT-5.5",
-        "reply": "API GPT-5.5",
-        "status": "success"
-    }
-    return Response(
-        json.dumps(data, ensure_ascii=False, indent=2),
-        mimetype='application/json; charset=utf-8'
-    )
+    data = {"model_used": "GPT-5.5", "reply": "API GPT-5.5 WORK", "status": "success"}
+    return Response(json.dumps(data, ensure_ascii=False, indent=2), mimetype='application/json; charset=utf-8')
 
 if __name__ == "__main__":
     app.run(debug=True)
