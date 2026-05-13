@@ -1,5 +1,4 @@
 from flask import Flask, request, Response
-from flask_compress import Compress
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -9,7 +8,6 @@ import re
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
-Compress(app)
 
 BASE_URL = "https://deniai.app"
 API_URL = f"{BASE_URL}/api/chat"
@@ -23,17 +21,13 @@ HEADERS = {
     "Content-Type": "application/json",
     "Origin": BASE_URL,
     "Referer": f"{BASE_URL}/",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
 }
 
-# ⚡ السرعة القصوى: Connection Pooling
 session = requests.Session()
 retry_strategy = Retry(total=2, backoff_factor=0.1, status_forcelist=[429, 500, 502, 503, 504])
 adapter = HTTPAdapter(pool_connections=50, pool_maxsize=100, max_retries=retry_strategy, pool_block=False)
 session.mount("https://", adapter)
 
-# 🛡️ الاستقرار
 user_memory = {}
 MAX_MSG = 300
 MAX_AGE = timedelta(hours=24)
@@ -64,21 +58,24 @@ def parse_sse(resp):
     return clean_text(fix_arabic(''.join(deltas)))
 
 def call_deni(msgs):
-    payload = {
-        "id": "417ae263-8147-4de9-9156-da577a284ba7",
-        "model": "gpt-5.5",
-        "webSearch": False,
-        "reasoningEffort": "high",
-        "video": False,
-        "image": False,
-        "deepResearch": False,
-        "messages": msgs,
-        "trigger": "submit-message"
-    }
-    resp = session.post(API_URL, headers=HEADERS, cookies=COOKIES, json=payload, stream=True, timeout=4)
-    if resp.status_code == 200:
-        return parse_sse(resp)
-    return None
+    try:
+        payload = {
+            "id": "417ae263-8147-4de9-9156-da577a284ba7",
+            "model": "gpt-5.5",
+            "webSearch": False,
+            "reasoningEffort": "high",
+            "video": False,
+            "image": False,
+            "deepResearch": False,
+            "messages": msgs,
+            "trigger": "submit-message"
+        }
+        resp = session.post(API_URL, headers=HEADERS, cookies=COOKIES, json=payload, stream=True, timeout=4)
+        if resp.status_code == 200:
+            return parse_sse(resp)
+        return None
+    except:
+        return None
 
 def ok(reply):
     return Response(
@@ -114,24 +111,29 @@ def chat():
 
 @app.route('/ask')
 def ask():
-    msg = request.args.get('q', '')
-    if not msg: return err("استخدم ?q=سؤالك")
-    
-    msgs = get_session()
-    msgs.append({"parts": [{"type": "text", "text": msg}], "id": str(uuid.uuid4())[:16], "role": "user"})
-    reply = call_deni(msgs)
-    
-    if reply:
-        msgs.append({"parts": [{"type": "text", "text": reply}], "id": str(uuid.uuid4())[:16], "role": "assistant"})
-        return ok(reply)
-    else:
-        msgs.pop()
-        return err("عذراً، حدث خطأ", 502)
+    try:
+        msg = request.args.get('q', '')
+        if not msg:
+            return err("استخدم ?q=سؤالك")
+        
+        msgs = get_session()
+        msgs.append({"parts": [{"type": "text", "text": msg}], "id": str(uuid.uuid4())[:16], "role": "user"})
+        reply = call_deni(msgs)
+        
+        if reply:
+            msgs.append({"parts": [{"type": "text", "text": reply}], "id": str(uuid.uuid4())[:16], "role": "assistant"})
+            return ok(reply)
+        else:
+            msgs.pop()
+            return err("عذراً، حدث خطأ", 502)
+    except Exception as e:
+        return err(f"خطأ: {str(e)[:100]}", 500)
 
 @app.route('/reset', methods=['POST'])
 def reset():
     uid = get_uid()
-    if uid in user_memory: del user_memory[uid]
+    if uid in user_memory:
+        del user_memory[uid]
     return ok("تم مسح الذاكرة")
 
 @app.route('/')
