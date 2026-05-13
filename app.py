@@ -1,7 +1,5 @@
 from flask import Flask, request, Response
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 import uuid
 import json
 import re
@@ -14,20 +12,19 @@ API_URL = f"{BASE_URL}/api/chat"
 
 COOKIES = {
     "__Secure-better-auth.session_token": "rr35rsYZuZ2mSEAZscQjEl10qQkxhjez.LqPP%2Bg02TrGOi0snadyIi34qNtI3J8lkXuruq80tPf0%3D",
+    "better-auth.last_used_login_method": "google",
+    "_ga": "GA1.1.1232790527.1778523320",
+    "_ga_B5H8G73JTN": "GS2.1.s1778707122$o2$g1$t1778707731$j56$l0$h0"
 }
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0",
+    "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36",
     "Content-Type": "application/json",
     "Origin": BASE_URL,
     "Referer": f"{BASE_URL}/",
 }
 
 session = requests.Session()
-retry_strategy = Retry(total=2, backoff_factor=0.1, status_forcelist=[429, 500, 502, 503, 504])
-adapter = HTTPAdapter(pool_connections=50, pool_maxsize=100, max_retries=retry_strategy, pool_block=False)
-session.mount("https://", adapter)
-
 user_memory = {}
 MAX_MSG = 300
 MAX_AGE = timedelta(hours=24)
@@ -48,7 +45,7 @@ def fix_arabic(text):
         return text
 
 def clean_text(text):
-    return text.replace('\\n', '\n').replace('\\', '').strip()
+    return text.replace('\\n', '\n').strip()
 
 def parse_sse(resp):
     t = ""
@@ -60,17 +57,17 @@ def parse_sse(resp):
 def call_deni(msgs):
     try:
         payload = {
-            "id": "417ae263-8147-4de9-9156-da577a284ba7",
+            "id": "5e0ae8e9-2956-4399-a4aa-98e76b3fd50f",
             "model": "gpt-5.5",
             "webSearch": False,
             "reasoningEffort": "high",
+            "deepResearch": False,
             "video": False,
             "image": False,
-            "deepResearch": False,
             "messages": msgs,
             "trigger": "submit-message"
         }
-        resp = session.post(API_URL, headers=HEADERS, cookies=COOKIES, json=payload, stream=True, timeout=4)
+        resp = session.post(API_URL, headers=HEADERS, cookies=COOKIES, json=payload, stream=True, timeout=6)
         if resp.status_code == 200:
             return parse_sse(resp)
         return None
@@ -97,11 +94,14 @@ def chat():
             return err("أرسل {'message':'نص'}")
         
         msgs = get_session()
+        # ⭐ نضيف رسالة المستخدم
         msgs.append({"parts": [{"type": "text", "text": data['message']}], "id": str(uuid.uuid4())[:16], "role": "user"})
+        # ⭐ نبعت كل تاريخ المحادثة
         reply = call_deni(msgs)
         
         if reply:
-            msgs.append({"parts": [{"type": "text", "text": reply}], "id": str(uuid.uuid4())[:16], "role": "assistant"})
+            # ⭐ نضيف رد البوت
+            msgs.append({"id": str(uuid.uuid4())[:16], "role": "assistant", "parts": [{"type": "step-start"}, {"type": "text", "text": reply, "state": "done"}]})
             return ok(reply)
         else:
             msgs.pop()
@@ -121,13 +121,13 @@ def ask():
         reply = call_deni(msgs)
         
         if reply:
-            msgs.append({"parts": [{"type": "text", "text": reply}], "id": str(uuid.uuid4())[:16], "role": "assistant"})
+            msgs.append({"id": str(uuid.uuid4())[:16], "role": "assistant", "parts": [{"type": "step-start"}, {"type": "text", "text": reply, "state": "done"}]})
             return ok(reply)
         else:
             msgs.pop()
             return err("عذراً، حدث خطأ", 502)
-    except Exception as e:
-        return err(f"خطأ: {str(e)[:100]}", 500)
+    except:
+        return err("خطأ داخلي", 500)
 
 @app.route('/reset', methods=['POST'])
 def reset():
